@@ -1,7 +1,10 @@
 # RPISEC bomb
 The binary displays a bomb, with 4 coloured wires. It asks you to choose a wire, and depending on what you use spawns a different function.
 
-The aim is to "break" all of the wires. In the binary, these are variables called `wire_yellow`, etc for each colour. These start off set to *1* - we want to set them to *0*.
+The aim is to "break" all of the wires. In the binary, these are variables called `wire_yellow`, etc for each colour. These start off set to *1* - we want to set them to *0*. 
+There's some logic at the start which I don't really understand. It spins off another thread, which periodically checks the wires. If any of them are *greater* than 1, it explodes.
+
+I had some issues trying to run this in gdb, where it would crash immediately if I set any breakpoints. To get round this, I just stopped the other thread from starting (break at `0x0804950a` and jump over the call to `pthread_create`).
 
 ## Yellow
 Can inspect this function in r2 by running `VV @ sym.yellow`.
@@ -61,19 +64,80 @@ If we trace through, this value is initially set to *1*, and then is edited in t
 ```
 
 This reads `[ebp - 8]`, and sets it to *0* if it's odd, *1* if it's even. 
-This is done twice, so it gets set back to *1* when it's checked at the end. If it started at any even value, it would end up as *0* and break the wire as we want.
+This is done twice in this chunk of code, so it gets set back to *1* when it's checked at the end. If it started at any even value, it would end up as *0* and break the wire as we want.
 
 ### Cracking it
 It turns out this program has a buffer overflow. Our input is read in at `[ebp - 0x14]`, and it reads up to `0x14` characters. 
 (This can be seen by looking in the function `sym.green_preflight`).
 
 The program only checks the first *8* characters, so we ca input characters after the password and it'll still be parsed as valid.
-There's a stack protector (seen with the call to `__stack_chk_fail`), but we can overwrite the value at `[ebp - 0x8]` without breaking this.
+There's a stack protector (seen with the call to `__stack_chk_fail`), but we can overwrite the value at `[ebp - 0x8]` without breaking this as long as we don't input too much.
 
 We wanting this to have an even value, so the character *B* will do (ASCII code *0x42*). This needs to be at position `0x14 - 0x8 + 1 = 0xd` of our input. 
 So e.g. **dcaotdaeXXXXB** works. Testing this, we break the green wire. :)
 
 ## Blue
+Reads in up to 16 characters. For each one, compares to *'L'*, *'R'* or *'\n'* - blows up if it's not one of these. Each character of input changes some values on the stack.
 
+After this, checks the value at `[ebp - 0x8]` to the value of the variable `solution`. If they're equal, breaks the blue wire, otherwise it blows up.
 
+What does the program do with the input, and what are the values on the stack?
+Before going into the loop, does the following:
+```
+0x080499fc       c745fc60c10408  mov dword [ebp - 4], obj.graph
+0x08049a03               8b45fc  mov eax, dword [ebp - 4]
+0x08049a06               8b4004  mov eax, dword [eax + 4]
+0x08049a09               8945f8  mov dword [ebp - 8], eax
+```
 
+Code which is run on reading *'L'*, *'R'* respectively:
+```
+[0x08048810]> pdi 3 @ 0x8049a40
+0x08049a40               8b45fc  mov eax, dword [ebp - 4]
+0x08049a43                 8b00  mov eax, dword [eax]
+0x08049a45               8945fc  mov dword [ebp - 4], eax
+[0x08048810]> pdi 3 @ 0x8049a4a
+0x08049a4a               8b45fc  mov eax, dword [ebp - 4]
+0x08049a4d               8b4008  mov eax, dword [eax + 8]
+0x08049a50               8945fc  mov dword [ebp - 4], eax
+```
+
+And then after each iteration of the loop, it runs the following:
+```
+[0x08048810]> pdi 3 @ 0x8049a77
+0x08049a77               8b45fc  mov eax, dword [ebp - 4]
+0x08049a7a               8b4004  mov eax, dword [eax + 4]
+0x08049a7d               3145f8  xor dword [ebp - 8], eax
+```
+
+So it looks like `[ebp - 0x8]` contains some running XOR of values, 
+and I guess `[ebp - 0x4]` maybe contains the current position in some graph?
+
+If we look at the values in memory, it becomes clear. Example:
+```
+[0x080499f1]> px 12 @ obj.graph
+- offset -   0 1  2 3  4 5  6 7  8 9  A B
+0x0804c160  9cc1 0408 96fa bb47 78c1 0408
+[0x080499f1]> px 12 @ 0x0804c19c
+- offset -   0 1  2 3  4 5  6 7  8 9  A B
+0x0804c19c  ccc1 0408 ef79 400c 14c2 0408
+```
+
+So the "graph" consists of nodes which look something like
+```
+struct Node{
+  *Node left;
+  int data;
+  *Node right;
+}
+```
+
+We start off with the data of the first node, stored at `obj.graph`.
+*'L'* moves left, *'R'* moves right, and at each stage we XOR with the new data value. The aim is to finish with running total equal to `obj.solution`.
+
+By looking at the hexdump manually, we can see there are 16 nodes in the graph, lying in continugous memory starting at `node1`. We can dump this out to a file by running `wtf graph.out 192 @ 0x0804c160`.
+
+The script `bomb_blue.py` parses this, and brute forces to find a possible solution. 
+**LLRR** is an example solution (many possibilities exist).
+
+## Red

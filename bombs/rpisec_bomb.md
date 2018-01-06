@@ -50,9 +50,9 @@ If we give the correct password, the only part of the code that changes `wire_gr
 0x080499bf                   c3  ret
 ```
 
-The jump at `0x0804999f` is not taken if `eax = 0`, i.e. if the value at `[ebp - 8]` is *0*. In this case `obj.wire_green` is divided by *2*, which sets it to 0! So we need to work out how to make sure this value is 0.
+The jump at `0x0804999f` is not taken if `eax = 0`, i.e. if the value at `[ebp - 8]` is 0. In this case `obj.wire_green` is divided by 2, which sets it to 0! So we need to work out how to make sure this value is 0.
 
-If we trace through, this value is initially set to *1*, and then is edited in the branch of code after checking it. Example code that edits it:
+If we trace through, this value is initially set to 1, and then is edited in the branch of code after checking it. Example code that edits it:
 
 ```
 0x08049952               8b45f8  mov eax, dword [ebp - 8]
@@ -63,14 +63,14 @@ If we trace through, this value is initially set to *1*, and then is edited in t
 0x08049960               8945f8  mov dword [ebp - 8], eax
 ```
 
-This reads `[ebp - 8]`, and sets it to *0* if it's odd, *1* if it's even. 
-This is done twice in this chunk of code, so it gets set back to *1* when it's checked at the end. If it started at any even value, it would end up as *0* and break the wire as we want.
+This reads `[ebp - 8]`, and sets it to 0 if it's odd, 1 if it's even. 
+This is done twice in this chunk of code, so it gets set back to 1 when it's checked at the end. If it started at any even value, it would end up as *0* and break the wire as we want.
 
 ### Cracking it
 It turns out this program has a buffer overflow. Our input is read in at `[ebp - 0x14]`, and it reads up to `0x14` characters. 
 (This can be seen by looking in the function `sym.green_preflight`).
 
-The program only checks the first *8* characters, so we ca input characters after the password and it'll still be parsed as valid.
+The program only checks the first 8 characters, so we can input characters after the password and it'll still be parsed as valid.
 There's a stack protector (seen with the call to `__stack_chk_fail`), but we can overwrite the value at `[ebp - 0x8]` without breaking this as long as we don't input too much.
 
 We wanting this to have an even value, so the character *B* will do (ASCII code *0x42*). This needs to be at position `0x14 - 0x8 + 1 = 0xd` of our input. 
@@ -123,7 +123,9 @@ If we look at the values in memory, it becomes clear. Example:
 0x0804c19c  ccc1 0408 ef79 400c 14c2 0408
 ```
 
-So the "graph" consists of nodes which look something like
+The words at position 0 and 8 look like pointers, which point to nearby locations of memory. 
+
+This with the code above suggests the "graph" consists of nodes which look something like
 ```
 struct Node{
   *Node left;
@@ -141,3 +143,22 @@ The script `bomb_blue.py` parses this, and brute forces to find a possible solut
 **LLRR** is the shortest solution (many possibilities exist).
 
 ## Red
+Unlike the others, the initial function that this runs (`sym.red_preflight`) is interesting. It generates 3 random numbers with a call to `rand()`, displays them and stores them in memory (at the variable named `r`).
+The program never seeds the random number generator, so it always generates the same random numbers. (I'm not sure if this is a bug or not?)
+
+It also loads a 32-byte string from memory, which is mostly equal to *[A-Z][0-9]*, with some characters removed.
+
+After this, it loops through `0x13` bytes of input, checks it against the variables in memory, and then applies an operation to the 3 variables.
+
+Unpicking what this does: Let's call the variables `x,y,z` in the order they're stored, and `S` the string.
+The program checks that the byte of input is equal to `S[z & 31]`.
+
+It then performs some assembly which in pseudocode does:
+```
+z = (y << 27) | (z >> 5)
+y = (x << 27) | (y >> 5)
+x = (x >> 5)
+```
+
+The script `bomb_red.py` runs through this logic, and prints out what the password should be.
+This gives **KDG3DU32D38EVVXJM64**.

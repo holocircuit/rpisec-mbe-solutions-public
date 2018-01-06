@@ -138,6 +138,6 @@ We start off with the data of the first node, stored at `obj.graph`.
 By looking at the hexdump manually, we can see there are 16 nodes in the graph, lying in continugous memory starting at `node1`. We can dump this out to a file by running `wtf graph.out 192 @ 0x0804c160`.
 
 The script `bomb_blue.py` parses this, and brute forces to find a possible solution. 
-**LLRR** is an example solution (many possibilities exist).
+**LLRR** is the shortest solution (many possibilities exist).
 
 ## Red

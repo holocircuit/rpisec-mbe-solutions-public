@@ -10,7 +10,7 @@ def pointer_to_node_pos(p):
     return (p - START) / 12
 
 def all_possible_paths(n):
-    # all possible paths consisting of L, R, of lengh at most n
+    # all possible paths consisting of L, R, of length at most n
     yield ""
     if n == 0: return
 

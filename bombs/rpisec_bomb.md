@@ -161,4 +161,4 @@ x = (x >> 5)
 ```
 
 The script `bomb_red.py` runs through this logic, and prints out what the password should be.
-This gives **KDG3DU32D38EVVXJM64**.
+For the random numbers my copy generated, this gave **KDG3DU32D38EVVXJM64**.

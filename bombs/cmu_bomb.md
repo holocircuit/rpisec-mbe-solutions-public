@@ -86,7 +86,7 @@ It starts off by reading 6 integers from the input. Let's label them `x_1, ..., 
 Loops through each `x_i`.
 Checks that it's between 1 and 6 - if not, crashes.
 
-Then loops through `x_{i+1}, ..., x_6`, and checks that none of them are equal to `x_i`.
+Then loops through `x_{i+1}, ..., x_6`, and checks that none of them are equal to `x_i`. In other words, it's checking that they're all distinct.
 
 So in summary: it checks that the input is the numbers 1,2,3,4,5,6 in some order.
 
@@ -132,8 +132,38 @@ So to put this in decreasing order, we want to input **4 2 6 3 1 5**.
 ## Secret phase!
 There's a secret phase as well.
 
+### Accessing secret phase
+After each phase, the function `phase_defused` is called. If this is the 6th string we're reading, it displays the "Congratulations" message, and finishes the game.
 
+However, before this it tries to read a particular bit of memory with the format string `%d %s`. If the string part says *austinpowers* then it goes onto the secret phase. 
 
+Putting this through gdb, the bit of memory contained the string *"9"*. I guessed this was reading the solution to phase 4. Changing the solution for this phase to **9 austinpowers** lets us go onto the secret phase.
 
+### Solving secret phase
+Reads in an integer. Checks that it's between 1 and `0x3e9`. 
+If so, runs `fun7`, with inputs the variable `n1` and the integer we input. We succeed if the output of the function is 7.
 
+`fun7` is a recursive function. It takes in two inputs from the stack - we'll call them `p, x`.
+It does the following:
+- if `p = 0`, return -1
+- compare `*p` and `x`:
+    - if `*p = x`, return 0
+    - if `*p > x`, return `2*f(*(p + 4), x)`
+    - if `*p < x`, return `2*f(*(p + 8), x) + 1`
+    
+This makes us think of some sort of linked structure again, where `p` points to some memory containing some data and two pointers. Let's think of it as the following structure:
+```
+struct Tree {
+  int data;
+  Tree* left;
+  Tree* right;
+}
+```
 
+Looking in memory, this seems roughly correct. We have a binary tree with 15 nodes. It's balanced and in sorted order (so left.data <= data <= right.data).
+
+Phrasing the function above in terms of the tree structure:
+The function is doing a sort of search in the tree for `x`. Assuming it's in the tree, it returns a number in binary giving the path to `x`, where `0` is added for going left and `1` is added for going right.
+(This function isn't unique e.g. the paths L and LL will both return 0.)
+
+We want the function to return 7, which is 111 in binary, so one way to return this would be to go right three times. The node corresponding to RRR has data `0x3e9`. So we want to input this, which is **1001**. This solves the secret phase.

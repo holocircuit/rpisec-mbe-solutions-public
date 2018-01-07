@@ -166,4 +166,4 @@ Phrasing the function above in terms of the tree structure:
 The function is doing a sort of search in the tree for `x`. Assuming it's in the tree, it returns a number in binary giving the path to `x`, where `0` is added for going left and `1` is added for going right.
 (This function isn't unique e.g. the paths L and LL will both return 0.)
 
-We want the function to return 7, which is 111 in binary, so one way to return this would be to go right three times. The node corresponding to RRR has data `0x3e9`. So we want to input this, which is **1001**. This solves the secret phase.
+We want the function to return 7, which is 111 in binary, so one way to get this would be to go right three times. The node corresponding to RRR has data `0x3e9`, or**1001**. This solves the secret phase.

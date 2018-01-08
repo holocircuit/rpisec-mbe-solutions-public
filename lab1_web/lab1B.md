@@ -46,6 +46,6 @@ So after this line we have `(EAX, EBX, ECX, EDX) = (0, S[i], i+1, 0)`.
 Tracing through the rest of the assembly, after the penultimate line we have
 `(EAX, EBX, ECX, EDX) = (i+1, S[i], i+1, i+1)`.
 
-So the final value of EAX is the string S XORed with `i+1`, giving the keystream above. (This would change if S were longer.)
+So the final value of EAX is the string S XORed with `i+1`, giving the password above. (This would change if S were longer.)
 
 I guess the moral is: it's very easy to write very obfuscated assembly!
